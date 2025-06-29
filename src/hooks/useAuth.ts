@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { User, Session, AuthError } from '@supabase/supabase-js'
+import { useState, useEffect, useCallback } from 'react'
+import { User, Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { getRedirectPath, isSystemAdmin, clearSupabaseSession } from '../utils/auth'
+import { getRedirectPath, isSystemAdmin } from '../utils/auth'
 
 export interface UserProfile {
   id: string
@@ -15,7 +15,16 @@ export interface UserProfile {
   license_number: string | null
   is_active: boolean
   last_login_at: string | null
-  settings: any
+  settings: {
+    theme?: string
+    language?: string
+    notifications?: {
+      email?: boolean
+      sms?: boolean
+      push?: boolean
+    }
+    [key: string]: unknown
+  }
   created_at: string
   updated_at: string
 }
@@ -40,7 +49,7 @@ export const useAuth = () => {
   // Fetch user profile with simplified error handling
   const fetchUserProfile = async (userId: string): Promise<UserProfile | null> => {
     try {
-      console.log('👤 Fetching user profile for:', userId)
+      console.log('🔍 Fetching user profile for:', userId)
       
       // Simple, direct query with shorter timeout
       const { data, error } = await supabase
@@ -50,7 +59,7 @@ export const useAuth = () => {
         .single()
 
       if (error) {
-        console.error('❌ Database error fetching user profile:', error.message)
+        console.error('❌ Error fetching user profile:', error.message)
         return null
       }
 
@@ -60,9 +69,10 @@ export const useAuth = () => {
       }
 
       console.log('✅ User profile fetched successfully')
-      return data
+      return data as UserProfile
     } catch (error) {
-      console.error('💥 Error fetching user profile:', error instanceof Error ? error.message : 'Unknown error')
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      console.error('💥 Error fetching user profile:', errorMessage)
       return null
     }
   }
@@ -79,7 +89,7 @@ export const useAuth = () => {
         console.error('❌ Error updating last login:', error.message)
       }
     } catch (error) {
-      console.error('💥 Error updating last login:', error instanceof Error ? error.message : 'Unknown error')
+      console.error('💥 Error updating last login:', error)
     }
   }
 
@@ -205,8 +215,28 @@ export const useAuth = () => {
     }
   }
 
-  // Clear Supabase session
-  const clearSession = async () => {
+  // Helper function to clear all auth data
+  const clearAllAuthData = () => {
+    try {
+      const storageKey = `sb-${import.meta.env.VITE_SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`
+      localStorage.removeItem(storageKey)
+      sessionStorage.removeItem(storageKey)
+      document.cookie = `${storageKey}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+      
+      // Also clear the custom storage key
+      localStorage.removeItem('clinicflow-auth-token')
+      sessionStorage.removeItem('clinicflow-auth-token')
+      
+      // Clear any other potential auth-related keys
+      localStorage.removeItem('sb-auth-token')
+      sessionStorage.removeItem('sb-auth-token')
+    } catch (error) {
+      console.error('Error clearing auth data:', error)
+    }
+  }
+
+  // Clear session without signing out
+  const clearSession = useCallback(async (): Promise<{ error: string | null }> => {
     try {
       console.log('🧹 Clearing Supabase session...')
       
@@ -219,15 +249,14 @@ export const useAuth = () => {
         error: null
       })
 
-      // Clear Supabase session cookies
-      clearSupabaseSession()
-
-      // Call Supabase signOut to clear server-side session
-      const { error } = await supabase.auth.signOut()
+      // Clear all auth data
+      clearAllAuthData()
       
-      if (error) {
-        console.error('⚠️ Supabase signOut error:', error.message)
-        // Don't throw error since we're just cleaning up
+      // Try to sign out from Supabase
+      try {
+        await supabase.auth.signOut()
+      } catch (error) {
+        console.warn('⚠️ Supabase sign out warning:', error)
       }
 
       console.log('✅ Session cleared')
@@ -237,23 +266,38 @@ export const useAuth = () => {
       console.error('💥 Clear session error:', errorMessage)
       return { error: errorMessage }
     }
-  }
+  }, [])
 
-  // Sign out user
-  const signOut = async () => {
+  // Sign out
+  const signOut = async (): Promise<{ error: string | null }> => {
     try {
-      setAuthState(prev => ({ ...prev, loading: true, error: null }))
-      console.log('🚪 Signing out user...')
+      console.log('🚪 Starting sign out process')
       
-      // Clear session first
-      await clearSession()
+      // Clear local auth state
+      setAuthState({
+        user: null,
+        profile: null,
+        session: null,
+        loading: false,
+        error: null
+      })
 
-      console.log('✅ Sign out successful')
+      // Clear all auth data
+      clearAllAuthData()
+
+      // Call Supabase signOut to clear server-side session
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error('⚠️ Supabase signOut error:', error.message)
+        // Even if there's an error, we've cleared local state
+      }
+
+      console.log('✅ Signed out successfully')
       return { error: null }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Logout failed'
-      console.error('💥 Sign out error:', errorMessage)
-      setAuthState(prev => ({ ...prev, error: errorMessage, loading: false }))
+      const errorMessage = error instanceof Error ? error.message : 'Error signing out'
+      console.error('💥 Error in signOut:', errorMessage)
       return { error: errorMessage }
     }
   }
@@ -348,21 +392,32 @@ export const useAuth = () => {
     return getRedirectPath(authState.profile.role, isSystemAdminUser())
   }
 
-  useEffect(() => {
-    // Get initial session
-    const getInitialSession = async () => {
-      try {
-        console.log('🔍 Getting initial session...')
-        const { data: { session }, error } = await supabase.auth.getSession()
-        
-        if (error) {
-          console.error('❌ Error getting session:', error.message)
-          setAuthState(prev => ({ ...prev, loading: false, error: error.message }))
-          return
-        }
+  const getInitialSession = useCallback(async () => {
+    try {
+      console.log('🔍 Getting initial session...')
+      
+      // Clear any existing auth data first
+      const storageKey = `sb-${import.meta.env.VITE_SUPABASE_URL.split('//')[1].split('.')[0]}-auth-token`
+      const hasStaleToken = localStorage.getItem(storageKey) || sessionStorage.getItem(storageKey)
+      
+      if (hasStaleToken) {
+        console.log('🧹 Found stale auth token, clearing...')
+        clearAllAuthData()
+      }
+      
+      const { data: { session }, error } = await supabase.auth.getSession()
+      
+      if (error) {
+        console.error('❌ Error getting session:', error.message)
+        // Clear any potentially corrupted session data
+        clearAllAuthData()
+        setAuthState(prev => ({ ...prev, loading: false, error: error.message }))
+        return
+      }
 
-        if (session?.user) {
-          console.log('✅ Session found for user:', session.user.id)
+      if (session?.user) {
+        console.log('✅ Session found for user:', session.user.id)
+        try {
           const profile = await fetchUserProfile(session.user.id)
           setAuthState({
             user: session.user,
@@ -371,20 +426,27 @@ export const useAuth = () => {
             loading: false,
             error: null
           })
-        } else {
-          console.log('ℹ️ No session found')
+        } catch (profileError) {
+          console.error('❌ Error fetching user profile:', profileError)
+          // If we can't get the profile, clear the session
+          await clearSession()
           setAuthState(prev => ({ ...prev, loading: false }))
         }
-      } catch (error) {
-        console.error('💥 Error in getInitialSession:', error instanceof Error ? error.message : 'Unknown error')
-        setAuthState(prev => ({ 
-          ...prev, 
-          loading: false, 
-          error: error instanceof Error ? error.message : 'Session error'
-        }))
+      } else {
+        console.log('ℹ️ No active session found')
+        setAuthState(prev => ({ ...prev, loading: false }))
       }
+    } catch (error) {
+      console.error('💥 Error in getInitialSession:', error)
+      setAuthState(prev => ({ 
+        ...prev, 
+        loading: false, 
+        error: error instanceof Error ? error.message : 'Session error'
+      }))
     }
+  }, [clearSession])
 
+  useEffect(() => {
     getInitialSession()
 
     // Listen for auth changes
@@ -427,7 +489,7 @@ export const useAuth = () => {
           console.error('💥 Error in auth state change:', error instanceof Error ? error.message : 'Unknown error')
           setAuthState(prev => ({ 
             ...prev, 
-            loading: false,
+            loading: false, 
             error: error instanceof Error ? error.message : 'Auth state error'
           }))
         }
@@ -437,13 +499,14 @@ export const useAuth = () => {
     return () => {
       subscription.unsubscribe()
     }
-  }, [])
+  }, [getInitialSession])
 
   return {
     ...authState,
     signUp,
     signIn,
     signOut,
+    clearSession,
     resetPassword,
     updatePassword,
     updateProfile,

@@ -12,17 +12,37 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
+// Function to clear auth state
+const clearAuthState = () => {
+  const storageKey = `sb-${supabaseUrl.split('//')[1].split('.')[0]}-auth-token`
+  localStorage.removeItem(storageKey)
+  sessionStorage.removeItem(storageKey)
+  document.cookie = `${storageKey}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`
+}
+
+// Clear any existing auth state before initializing
+clearAuthState()
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
+    autoRefreshToken: false,
+    persistSession: false,
     detectSessionInUrl: true,
-    flowType: 'pkce'
+    flowType: 'pkce',
+    storageKey: 'clinicflow-auth-token'
   },
   global: {
     headers: {
       'X-Client-Info': 'clinicflow-web'
     }
+  }
+})
+
+// Add error listener for auth state changes
+supabase.auth.onAuthStateChange((event, session) => {
+  console.log('🔄 Auth state changed:', event, session)
+  if (event === 'SIGNED_OUT') {
+    clearAuthState()
   }
 })
 
@@ -32,7 +52,7 @@ const testConnection = async () => {
     console.log('🔌 Testing Supabase connection...')
     
     // Quick auth session check (most reliable)
-    const { data, error } = await supabase.auth.getSession()
+    const { error } = await supabase.auth.getSession()
     
     if (error) {
       console.warn('⚠️ Auth session check failed:', error.message)

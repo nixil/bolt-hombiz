@@ -3,6 +3,17 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, Stethoscope, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '../../context/AuthContext'
 
+interface LoginFormData {
+  email: string
+  password: string
+}
+
+interface DemoUser {
+  email: string
+  role: string
+  password: string
+}
+
 const LoginForm: React.FC = () => {
   const { profile, getUserRedirectPath, clearSession } = useAuthContext()
   const navigate = useNavigate()
@@ -11,12 +22,12 @@ const LoginForm: React.FC = () => {
   // If user is already signed in, redirect to appropriate dashboard
   useEffect(() => {
     if (profile) {
-      const redirectPath = (location.state as any)?.from?.pathname || getUserRedirectPath()
+      const redirectPath = (location.state as { from: { pathname: string } })?.from?.pathname || getUserRedirectPath()
       navigate(redirectPath, { replace: true })
     }
   }, [profile, navigate, location, getUserRedirectPath])
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<LoginFormData>({
     email: '',
     password: ''
   })
@@ -27,7 +38,7 @@ const LoginForm: React.FC = () => {
   const { signIn, error } = useAuthContext()
 
   // Get the intended destination or default based on user role
-  const from = (location.state as any)?.from?.pathname
+  const from = (location.state as { from: { pathname: string } })?.from?.pathname
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,11 +89,14 @@ const LoginForm: React.FC = () => {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
-    setFormData(prev => ({ ...prev, [name]: value }))
+    setFormData((prev: LoginFormData) => ({
+      ...prev,
+      [name]: value
+    }))
   }
 
   // Demo users for quick testing
-  const demoUsers = [
+  const demoUsers: DemoUser[] = [
     { email: 'sarah@sunshineclinic.com', role: 'Clinic Owner', password: 'demo123' },
     { email: 'michael@metrodental.com', role: 'Clinic Owner', password: 'demo123' },
     { email: 'emily@sunshineclinic.com', role: 'Doctor', password: 'demo123' },
