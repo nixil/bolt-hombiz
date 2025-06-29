@@ -31,15 +31,28 @@ const LoginForm: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+  
+    // Prevent double submission
+    if (isLoading) return
+  
     setIsLoading(true)
 
     try {
       console.log('🔐 Starting login process for:', formData.email)
+      
+      // Check if user is already signed in
+      if (profile) {
+        console.log('⚠️ User is already signed in, redirecting...')
+        const redirectPath = from || getUserRedirectPath()
+        navigate(redirectPath, { replace: true })
+        return
+      }
+
       const { user, error: signInError } = await signIn(formData.email, formData.password)
       
       if (signInError) {
         console.error('❌ Login error:', signInError)
-        return
+        throw signInError
       }
 
       if (user) {
@@ -61,7 +74,7 @@ const LoginForm: React.FC = () => {
       console.error('💥 Unexpected login error:', error)
     } finally {
       setIsLoading(false)
-    }
+    }  
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
