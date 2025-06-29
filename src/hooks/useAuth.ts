@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { User, Session, AuthError } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
-import { getRedirectPath, isSystemAdmin } from '../utils/auth'
+import { getRedirectPath, isSystemAdmin, clearSupabaseSession } from '../utils/auth'
 
 export interface UserProfile {
   id: string
@@ -211,12 +211,7 @@ export const useAuth = () => {
       setAuthState(prev => ({ ...prev, loading: true, error: null }))
       console.log('🚪 Signing out user...')
       
-      const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        throw error
-      }
-
+      // Clear local auth state first
       setAuthState({
         user: null,
         profile: null,
@@ -224,6 +219,17 @@ export const useAuth = () => {
         loading: false,
         error: null
       })
+
+      // Clear Supabase session cookies
+      clearSupabaseSession()
+
+      // Call Supabase signOut to clear server-side session
+      const { error } = await supabase.auth.signOut()
+      
+      if (error) {
+        console.error('⚠️ Supabase signOut error:', error.message)
+        // Don't throw error here since we've already cleared local state
+      }
 
       console.log('✅ Sign out successful')
       return { error: null }

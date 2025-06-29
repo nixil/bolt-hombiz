@@ -1,5 +1,16 @@
 // Authentication utility functions
 
+// Clear Supabase session cookies
+export const clearSupabaseSession = () => {
+  // Clear Supabase session cookies
+  document.cookie = 'sb-access-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  document.cookie = 'sb-refresh-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  
+  // Clear any other Supabase-related cookies
+  document.cookie = 'sb-auth-refresh-token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+  document.cookie = 'sb-auth-session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+}
+
 export const getRedirectPath = (userRole: string, isSystemAdmin: boolean = false): string => {
   console.log('🎯 Getting redirect path for role:', userRole, 'isSystemAdmin:', isSystemAdmin)
   

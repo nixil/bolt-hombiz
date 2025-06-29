@@ -1,9 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff, Stethoscope, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '../../context/AuthContext'
 
 const LoginForm: React.FC = () => {
+  const { profile, getUserRedirectPath } = useAuthContext()
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  // If user is already signed in, redirect to appropriate dashboard
+  useEffect(() => {
+    if (profile) {
+      const redirectPath = (location.state as any)?.from?.pathname || getUserRedirectPath()
+      navigate(redirectPath, { replace: true })
+    }
+  }, [profile, navigate, location])
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
@@ -12,9 +24,7 @@ const LoginForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
 
-  const { signIn, error, getUserRedirectPath, profile } = useAuthContext()
-  const navigate = useNavigate()
-  const location = useLocation()
+  const { signIn, error } = useAuthContext()
 
   // Get the intended destination or default based on user role
   const from = (location.state as any)?.from?.pathname
