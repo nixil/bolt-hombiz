@@ -205,13 +205,12 @@ export const useAuth = () => {
     }
   }
 
-  // Sign out user
-  const signOut = async () => {
+  // Clear Supabase session
+  const clearSession = async () => {
     try {
-      setAuthState(prev => ({ ...prev, loading: true, error: null }))
-      console.log('🚪 Signing out user...')
+      console.log('🧹 Clearing Supabase session...')
       
-      // Clear local auth state first
+      // Clear local auth state
       setAuthState({
         user: null,
         profile: null,
@@ -228,8 +227,26 @@ export const useAuth = () => {
       
       if (error) {
         console.error('⚠️ Supabase signOut error:', error.message)
-        // Don't throw error here since we've already cleared local state
+        // Don't throw error since we're just cleaning up
       }
+
+      console.log('✅ Session cleared')
+      return { error: null }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Error clearing session'
+      console.error('💥 Clear session error:', errorMessage)
+      return { error: errorMessage }
+    }
+  }
+
+  // Sign out user
+  const signOut = async () => {
+    try {
+      setAuthState(prev => ({ ...prev, loading: true, error: null }))
+      console.log('🚪 Signing out user...')
+      
+      // Clear session first
+      await clearSession()
 
       console.log('✅ Sign out successful')
       return { error: null }

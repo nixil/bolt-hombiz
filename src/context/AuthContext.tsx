@@ -14,6 +14,7 @@ interface AuthContextType extends AuthState {
   ) => Promise<{ user: any; error: string | null }>
   signIn: (email: string, password: string) => Promise<{ user: any; error: string | null }>
   signOut: () => Promise<{ error: string | null }>
+  clearSession: () => Promise<{ error: string | null }>
   resetPassword: (email: string) => Promise<{ error: string | null }>
   updatePassword: (newPassword: string) => Promise<{ error: string | null }>
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: string | null }>
@@ -29,9 +30,10 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const auth = useAuth()
+  const { clearSession } = auth
 
   return (
-    <AuthContext.Provider value={auth}>
+    <AuthContext.Provider value={{ ...auth, clearSession }}>
       {children}
     </AuthContext.Provider>
   )

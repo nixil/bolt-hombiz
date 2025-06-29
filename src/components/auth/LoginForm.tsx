@@ -4,7 +4,7 @@ import { Eye, EyeOff, Stethoscope, AlertCircle } from 'lucide-react'
 import { useAuthContext } from '../../context/AuthContext'
 
 const LoginForm: React.FC = () => {
-  const { profile, getUserRedirectPath } = useAuthContext()
+  const { profile, getUserRedirectPath, clearSession } = useAuthContext()
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -14,7 +14,7 @@ const LoginForm: React.FC = () => {
       const redirectPath = (location.state as any)?.from?.pathname || getUserRedirectPath()
       navigate(redirectPath, { replace: true })
     }
-  }, [profile, navigate, location])
+  }, [profile, navigate, location, getUserRedirectPath])
 
   const [formData, setFormData] = useState({
     email: '',
@@ -40,14 +40,13 @@ const LoginForm: React.FC = () => {
     try {
       console.log('🔐 Starting login process for:', formData.email)
       
-      // Check if user is already signed in
-      if (profile) {
-        console.log('⚠️ User is already signed in, redirecting...')
-        const redirectPath = from || getUserRedirectPath()
-        navigate(redirectPath, { replace: true })
-        return
+      // Clear any existing session first
+      const { error: clearError } = await clearSession()
+      if (clearError) {
+        console.error('❌ Error clearing session:', clearError)
+        throw new Error('Failed to clear existing session')
       }
-
+      
       const { user, error: signInError } = await signIn(formData.email, formData.password)
       
       if (signInError) {
